@@ -1,5 +1,6 @@
 # A ConvNeXt based model for tree detection
 
+![alt text](3.png) ![alt text](3_mask_final.png)
 A ConvNeXt based U-net model trained to detect **individual trees** and **clusters of trees** in satellite images.
 
 **Blue** pixels represent individual trees, whereas **Orange** pixels represent clusters of trees (that can also include forested areas).
