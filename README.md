@@ -11,7 +11,7 @@ A ConvNeXt based U-net model trained to detect **individual trees** and **cluste
 
 **Blue** pixels represent individual trees, whereas **Orange** pixels represent clusters of trees (that can also include forested areas).
 
-**How to test images?**
+## How to test images?
 1) Install all the libraries used in the file `convunext_test_final.py` and then run the file.
 2) Specify the paths to the `.onnx` file, input image file and the output directory.
 3) Specify perameter values for minimum accepted area for individual trees and cluster of trees
@@ -19,6 +19,19 @@ A ConvNeXt based U-net model trained to detect **individual trees** and **cluste
 The **ONNX** file is located in the following repository: 
 [https://doi.org/10.5281/zenodo.13800136](https://doi.org/10.5281/zenodo.20573673)
 
+
+## Citation
+If you find this tool helpful in your work, please cite the following
+```
+@misc{zenodo_project_2026,
+  title={A ConvNeXt based model for tree detection},
+  author={Kalita, Nehal and Alahari, Yukteshwar and Maurya, Rajesh Kumar},
+  month={June},
+  year={2026},
+  publisher={Zenodo},
+  url={https://doi.org/10.5281/zenodo.20573673}
+}
+```
 
 _______________________________________________________________________________
 For training this model, images were collected from the following projects: - 
