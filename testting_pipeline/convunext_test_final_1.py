@@ -8,6 +8,9 @@ import matplotlib.patches as mpatches
 from pathlib import Path
 from datetime import datetime
 from scipy.ndimage import label
+import json
+
+import remove_noise_1
 
 try:
     from tqdm import tqdm
@@ -32,7 +35,7 @@ import onnxruntime as ort
 ONNX_MODEL = r"convunext\convunext_cls_best_gis.onnx"
 
 # Single whole image file (wi)  OR  a folder of whole image (wi) files to process
-INPUT = r"convunext\test_wi\4.png"
+INPUT = r"convunext\test_wi\5.png"
 
 # Folder where all output files are saved
 # A separate subfolder is created per input whole image (wi)
@@ -99,13 +102,6 @@ def seg_Color(count_pxl, hgt, wdt):
             if cluster_map[i1][i2] > 0:
                 segs[cluster_map[i1][i2] - 1].append([i2, i1])
     return segs
-
-def short_dist(point1, point2): # shortest distance
-    if len(point1) != len(point2):
-        raise ValueError("Points must have the same number of dimensions")
-    
-    squared_diff_sum = sum((p1 - p2) ** 2 for p1, p2 in zip(point1, point2))
-    return math.sqrt(squared_diff_sum)
 
 
 #  Load ONNX Model
@@ -336,6 +332,20 @@ def build_composite(wi:          np.ndarray,
     blended = (wi.astype(np.float32) * (1.0 - alpha) +
                rgba[:, :, :3].astype(np.float32) * alpha)
     return blended.clip(0, 255).astype(np.uint8)
+
+
+# Compute exponent and decide precision programmatically
+
+def to_sci(val, sig_digits=None):
+    if val == 0:
+        return "0e+00"
+    exponent = math.floor(math.log10(abs(val)))
+    mantissa = val / (10 ** exponent)
+    if sig_digits is None:
+        # auto-detect how many digits are needed to represent the value uniquely
+        sig_digits = len(repr(val).replace('.', '').replace('-', '').lstrip('0'))
+        sig_digits = min(sig_digits, 10)  # cap to avoid absurd precision
+    return f"{mantissa:.{sig_digits-1}f}e{exponent:+03d}"
 
 
 #  Save Outputs
@@ -643,12 +653,16 @@ def save_outputs(wi:          np.ndarray,
     ## then similar condition applies for collected pixel count of individual trees and clusters for the cluster.
     
     seg_grp_cn = [] # pixel count of segment groups
-    for line1 in seg_init_groups:
+    for line1 in seg_init_groups:  ## FIX IN THIS LOOP -- to count pixels of neighbouring tree segments separately
         temp_0, temp_1 = 0, 0
         for i1 in line1[0]:
-            temp_0 += len(seg_vld[0][i1])
+            #temp_0 += len(seg_vld[0][i1])
+            if len(seg_vld[0][i1]) > temp_0:
+                temp_0 = len(seg_vld[0][i1])
         for i1 in line1[1]:
             temp_1 += len(seg_vld[1][i1])
+            #if len(seg_vld[1][i1]) > temp_1:
+            #    temp_1 = len(seg_vld[1][i1])
         seg_grp_cn.append([temp_0, temp_1])
         #print(f'{line1}  pixel count: [{temp_0}, {temp_1}]\n')
     
@@ -682,6 +696,13 @@ def save_outputs(wi:          np.ndarray,
     for j1 in range(len(seg_vld[1])):
         print(f'{j1}: len:{len(seg_vld[1][j1])},', end= "  ")
     print()"""
+    
+    with open(str(out_dir / f"{stem}_seg_raw.json"), 'w') as f:
+        json.dump(seg_vld, f, indent=2)
+    with open(str(out_dir / f"{stem}_valid_r_c.json"), 'w') as f:
+        json.dump([[[valid_rows[-2][0], valid_rows[-2][1]]] + [[valid_columns[-2][0], valid_columns[-2][1]]]] + 
+                  [[[valid_rows[-1][0], valid_rows[-1][1]]] + [[valid_columns[-1][0], valid_columns[-1][1]]]], 
+                  f, indent=2)
 
     max_seg_vld_0 = 0
     if len(seg_vld[0]) > 0:
@@ -699,51 +720,93 @@ def save_outputs(wi:          np.ndarray,
                 min_seg_vld_1 = len(seg_vld[1][i1])
     
     if max_seg_vld_0 > 0:
-        print('Individual tree area: min, max, min/max: ', min_seg_vld_0, max_seg_vld_0, min_seg_vld_0 / max_seg_vld_0)
+        print('\nIndividual tree area: min, max, min/max: ', min_seg_vld_0, max_seg_vld_0, min_seg_vld_0 / max_seg_vld_0)
     if max_seg_vld_1 > 0:
         print('Cluster area: min, max, min/max: ', min_seg_vld_1, max_seg_vld_1, min_seg_vld_1 / max_seg_vld_1)
+    
+    min_accepted_a0, min_accepted_a1 = 0, 0
     if max_seg_vld_0 > 0:
-        min_accepted_a0 = float(input('\nEnter minimum accepted area for individual trees (in %): '))
+        #min_accepted_a0 = float(input('\nEnter minimum accepted area for individual trees (in %): '))
+        s = str(min_seg_vld_0 / max_seg_vld_0)
+        if s.__contains__('e-') == True:
+            min_accepted_a0 = s.split('e-')[1]
+            min_accepted_a0 = 1 / pow(10,int(min_accepted_a0))
+        else:
+            s = str(to_sci(min_seg_vld_0 / max_seg_vld_0))
+            min_accepted_a0 = s.split('e-')[1]
+            min_accepted_a0 = 1 / pow(10,int(min_accepted_a0))
+
     if max_seg_vld_1 > 0:
-        min_accepted_a1 = float(input('\nEnter minimum accepted area for cluster of trees (in %): '))
+        #min_accepted_a1 = float(input('Enter minimum accepted area for cluster of trees (in %): '))
+        s = str(min_seg_vld_1 / max_seg_vld_1)
+        if s.__contains__('e-') == True:
+            min_accepted_a1 = s.split('e-')[1]
+            min_accepted_a1 = 1 / pow(10,int(min_accepted_a1))
+        else:
+            s = str(to_sci(min_seg_vld_1 / max_seg_vld_1))
+            min_accepted_a1 = s.split('e-')[1]
+            min_accepted_a1 = 1 / pow(10,int(min_accepted_a1))
 
     # generate image for the grouped segments
     pred_segment = [[] for i in range(img_height)]
     for i in range(img_height):
         pred_segment[i] = [np.float32([0, 0, 0]) for i in range(img_width)]
+    
+    final_min_vld_0_area = max_seg_vld_0
+    final_min_vld_1_area = float(input('\nEnter minimum cluster area in terms of multiple of tree area: '))
 
+    tree_pixels, cluster_pixels = 0, 0
     #cmap   = plt.cm.get_cmap("tab10")
     cmap   = plt.get_cmap("tab10")
     for i in range(1, num_classes):
-        r, g, b, _ = cmap((i - 1) % 10)
+        r1, g1, b1, _ = cmap((i - 1) % 10)
         if i == 1:
             for j1 in range(len(seg_vld[0])):
                 if len(seg_vld[0][j1]) >= min_accepted_a0 * max_seg_vld_0:
+                    #print(0, len(seg_vld[0][j1]), min_accepted_a0, max_seg_vld_0, min_accepted_a0 * max_seg_vld_0)
                     for j2 in range(len(seg_vld[0][j1])):
-                        pred_segment[seg_vld[0][j1][j2][1]][seg_vld[0][j1][j2][0]] = [int(r * 255), int(g * 255), int(b * 255)]
+                        pred_segment[seg_vld[0][j1][j2][1]][seg_vld[0][j1][j2][0]] = [int(r1 * 255), int(g1 * 255), int(b1 * 255)]
+                    if len(seg_vld[0][j1]) < final_min_vld_0_area:
+                        final_min_vld_0_area = len(seg_vld[0][j1])
+                    tree_pixels += len(seg_vld[0][j1])
         else:
+            r2, g2, b2, _ = cmap(((i - 1) - 1) % 10)
             for j1 in range(len(seg_vld[1])):
                 if len(seg_vld[1][j1]) >= min_accepted_a1 * max_seg_vld_1:
-                    for j2 in range(len(seg_vld[1][j1])):
-                        pred_segment[seg_vld[1][j1][j2][1]][seg_vld[1][j1][j2][0]] = [int(r * 255), int(g * 255), int(b * 255)]
+                    #print(1, len(seg_vld[1][j1]), min_accepted_a1, max_seg_vld_1, min_accepted_a1 * max_seg_vld_1)
+                    if len(seg_vld[1][j1]) >= final_min_vld_1_area * final_min_vld_0_area:
+                        for j2 in range(len(seg_vld[1][j1])):
+                            pred_segment[seg_vld[1][j1][j2][1]][seg_vld[1][j1][j2][0]] = [int(r1 * 255), int(g1 * 255), int(b1 * 255)]
+                        cluster_pixels += len(seg_vld[1][j1])
+                    else:
+                        for j2 in range(len(seg_vld[1][j1])):
+                            pred_segment[seg_vld[1][j1][j2][1]][seg_vld[1][j1][j2][0]] = [int(r2 * 255), int(g2 * 255), int(b2 * 255)]
+                        tree_pixels += len(seg_vld[1][j1])
 
     pred_segment = np.array(pred_segment)  # pred_pixels
     pred_segment = pred_segment.astype(np.uint8)
     #plt.imshow(pred_segment)
     #plt.show()
-    class_fname = out_dir / f"{stem}_mask_final.png"
+    class_fname = out_dir / f"{stem}_mask_min_cluster_area.png"
     # cv2 expects BGR — convert from RGB
     cv2.imwrite(str(class_fname),
                 cv2.cvtColor(pred_segment, cv2.COLOR_RGB2BGR))
 
-    #  Terminal pixel statistics 
-    total = pred_map.size
+    file_dir_info = open(str(Path(INPUT).parent / f"{stem}_file_info.txt"), 'w')
+    file_dir_info.write(str(out_dir))
+    file_dir_info.close()
+
+    """#  Terminal pixel statistics
     print(f"\n  Pixel statistics for : {wi_name}")
     print(f"  {'Class':<20} {'Pixels':>10}   {'Area %':>7}")
     print(f"  {'-'*44}")
-    for c, name in enumerate(class_names):
-        count = int((pred_map == c).sum())
-        print(f"  {name:<20} {count:>10,}   {count / total * 100:>6.2f}%")
+    print(f"  {str('Background'):<20} {((img_height * img_width) - (tree_pixels + cluster_pixels)):>10,}   {((img_height * img_width) - (tree_pixels + cluster_pixels)) / (img_height * img_width) * 100:>6.2f}%")
+    print(f"  {str('Tree'):<20} {tree_pixels:>10,}   {tree_pixels / (img_height * img_width) * 100:>6.2f}%")
+    print(f"  {str('Cluster'):<20} {cluster_pixels:>10,}   {cluster_pixels / (img_height * img_width) * 100:>6.2f}%")"""
+    print()
+
+    # Finalize area of tree clusters
+    remove_noise_1.main(out_dir, INPUT, OVERLAY_ALPHA)
 
     return
 
@@ -847,7 +910,7 @@ def main():
     providers = select_providers()
 
     print("\n" + "=" * 60)
-    print("  ConvUNeXt — Whole Slide Image Inference")
+    print("  ConvUNeXt — Whole Image Inference")
     print("=" * 60)
 
     session, img_size, num_classes, input_name, output_name = \
@@ -872,7 +935,7 @@ def main():
 
         wi = load_image_rgb(str(wi_path))
         m1, m2 = wi.shape[:2]
-        print(f"  wi dimensions : {m2} x {m1}  (W x H)")
+        print(f"  WI dimensions : {m2} x {m1}  (W x H)")
 
         # Each wi gets its own output subfolder
         wi_out_dir = Path(OUTPUT_DIR) / wi_path.stem
@@ -909,7 +972,6 @@ def main():
     print("\n" + "=" * 60)
     print(f"  Done.  Processed {len(wi_paths)} wi(s).")
     print(f"  Results saved to : {Path(OUTPUT_DIR).resolve()}")
-
 
 if __name__ == "__main__":
     main()
