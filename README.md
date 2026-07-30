@@ -30,7 +30,7 @@ If you find this tool helpful in your work, please cite the following
   month={June},
   year={2026},
   publisher={Zenodo},
-  url={https://doi.org/10.5281/zenodo.20573673}
+  url={https://doi.org/10.5281/zenodo.21710722}
 }
 ```
 
