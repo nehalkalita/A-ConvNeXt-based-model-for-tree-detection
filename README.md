@@ -18,7 +18,7 @@ A ConvNeXt based U-net model trained to detect **individual trees** and **cluste
 4) Specify perameter values for ***'minimum cluster area in terms of multiple of tree area'*** and ***'minimum cluster area (in %)'***.
 
 The **ONNX** file is located in the following repository: 
-[https://doi.org/10.5281/zenodo.21710722](https://doi.org/10.5281/zenodo.21710722)
+[https://doi.org/10.5281/zenodo.21714497](https://doi.org/10.5281/zenodo.21714497)
 
 
 ## Citation
@@ -30,7 +30,7 @@ If you find this tool helpful in your work, please cite the following
   month={June},
   year={2026},
   publisher={Zenodo},
-  url={https://doi.org/10.5281/zenodo.21710722}
+  url={https://doi.org/10.5281/zenodo.21714497}
 }
 ```
 
