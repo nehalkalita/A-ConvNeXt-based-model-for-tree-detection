@@ -7,9 +7,11 @@
   </tr>
 </table>
 
-A ConvNeXt based U-net model trained to detect **individual trees** and **clusters of trees** in satellite images.
+A ConvNeXt based U-net model trained to segment two classes of trees in 2D satellite images:
+**Class 1** segments individual trees and trees from sites of low vegetation density. 
+**Class 2** segments trees from sites of high vegetation density.
 
-**Blue** pixels represent individual trees, whereas **Orange** pixels represent clusters of trees (that can also include forested areas).
+**Blue** pixels represent Class 1, whereas **Orange** pixels represent Class 2 (that can also include forested areas).
 
 ## How to test images?
 1) Install all the libraries used in the files `convunext_to_onnx.py`, `convunext_test_final_1.py` and `remove_noise_1.py` located inside the directories `training_pipeline` and `testing_pipeline` respectively.
