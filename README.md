@@ -8,7 +8,8 @@
 </table>
 
 A ConvNeXt based U-net model trained to segment two classes of trees in 2D satellite images:
-**Class 1** segments individual trees and trees from sites of low vegetation density. 
+**Class 1** segments individual trees and trees from sites of low vegetation density.
+
 **Class 2** segments trees from sites of high vegetation density.
 
 **Blue** pixels represent Class 1, whereas **Orange** pixels represent Class 2 (that can also include forested areas).
